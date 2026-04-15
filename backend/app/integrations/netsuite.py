@@ -124,7 +124,8 @@ def run_suiteql_with_pagination(
     while True:
         payload = {"q": query, "params": params, "limit": page_size, "offset": offset}
         response = requests.post(endpoint, json=payload, auth=oauth, timeout=30)
-        response.raise_for_status()
+        if not response.ok:
+            raise ValueError(f"NetSuite query failed ({response.status_code}): {response.text}")
         data = response.json()
         items = data.get("items", [])
         all_items.extend(items)
@@ -160,8 +161,6 @@ JOIN Item i ON i.id = tl.item
 WHERE t.type = 'SalesOrd'
   AND tl.mainline = 'F'
   AND tl.taxline = 'F'
-  AND t.custbody10 >= TO_DATE(:start_date, 'YYYY-MM-DD')
-  AND t.custbody10 <= TO_DATE(:end_date, 'YYYY-MM-DD')
 """
 
 KIT_COMPONENTS_SUITEQL = """
@@ -316,11 +315,12 @@ def get_shortage_report(
     end = end_date or default_end
     credentials = get_netsuite_credentials(settings)
 
-    line_query = SHORTAGE_LINES_SUITEQL
-    line_params: dict[str, Any] = {
-        "start_date": start.isoformat(),
-        "end_date": end.isoformat(),
-    }
+    line_query = (
+        SHORTAGE_LINES_SUITEQL
+        + f"\n  AND t.custbody10 >= TO_DATE('{start.isoformat()}', 'YYYY-MM-DD')"
+        + f"\n  AND t.custbody10 <= TO_DATE('{end.isoformat()}', 'YYYY-MM-DD')"
+    )
+    line_params: dict[str, Any] = {}
     if location_id:
         line_query += " AND tl.location = :location_id"
         line_params["location_id"] = location_id
