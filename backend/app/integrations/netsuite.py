@@ -120,10 +120,20 @@ def run_suiteql_with_pagination(
     offset = 0
     all_items: list[dict[str, Any]] = []
     oauth = build_oauth1(credentials)
+    headers = {"Prefer": "transient", "Content-Type": "application/json", "Accept": "application/json"}
 
     while True:
-        payload = {"q": query, "params": params, "limit": page_size, "offset": offset}
-        response = requests.post(endpoint, json=payload, auth=oauth, timeout=30)
+        payload: dict[str, Any] = {"q": query}
+        if params:
+            payload["params"] = params
+        response = requests.post(
+            endpoint,
+            params={"limit": page_size, "offset": offset},
+            json=payload,
+            auth=oauth,
+            headers=headers,
+            timeout=30,
+        )
         if not response.ok:
             raise ValueError(f"NetSuite query failed ({response.status_code}): {response.text}")
         data = response.json()
