@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     netsuite_token_secret: Optional[str] = Field(default=None, alias="NETSUITE_TOKEN_SECRET")
     netsuite_realm: Optional[str] = Field(default=None, alias="NETSUITE_REALM")
     netsuite_query_page_size: int = Field(default=1000, alias="NETSUITE_QUERY_PAGE_SIZE")
+    netsuite_ddb_cache_enabled: bool = Field(default=False, alias="NETSUITE_DDB_CACHE_ENABLED")
+    netsuite_ddb_cache_table: Optional[str] = Field(default=None, alias="NETSUITE_DDB_CACHE_TABLE")
+    netsuite_query_cache_ttl_seconds: int = Field(default=1800, alias="NETSUITE_QUERY_CACHE_TTL_SECONDS")
+    netsuite_ddb_cache_max_payload_bytes: int = Field(default=350000, alias="NETSUITE_DDB_CACHE_MAX_PAYLOAD_BYTES")
 
     @property
     def cognito_issuer(self) -> str:

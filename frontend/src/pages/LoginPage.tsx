@@ -26,7 +26,14 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
   return (
     <main className="centered-page">
       <section className="card auth-card">
-        <img src="/logo.svg" alt="Quai" className="landing-brand-logo" />
+        <img
+          src="/logo.jpg"
+          alt="Quai"
+          className="landing-brand-logo"
+          onError={(event) => {
+            event.currentTarget.src = "/logo.svg";
+          }}
+        />
         <h1>Quai Fulfillment Coordinator</h1>
         <p>Use your assigned credentials to continue.</p>
         <form onSubmit={handleSubmit} className="auth-form">

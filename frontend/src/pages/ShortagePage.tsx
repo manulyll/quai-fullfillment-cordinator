@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ItemGroupedTable } from "../components/ItemGroupedTable";
+import { ShipCalendar } from "../components/ShipCalendar";
 import { ShortageTable } from "../components/ShortageTable";
 import { apiClient } from "../lib/api";
 import type { LocationOption, ShortageReportResponse, UserInfo } from "../lib/types";
@@ -23,10 +25,12 @@ const defaultDateRange = (): { startDate: string; endDate: string } => {
 };
 
 export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
+  type ViewMode = "order" | "item" | "calendar";
   const defaults = useMemo(defaultDateRange, []);
   const [me, setMe] = useState<UserInfo | null>(null);
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [report, setReport] = useState<ShortageReportResponse | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("order");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string>("");
@@ -86,7 +90,14 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
     <main className="dashboard-page">
       <header className="topbar">
         <div className="navbar-title">
-          <img src="/logo.svg" alt="Quai" className="navbar-brand-logo" />
+          <img
+            src="/logo.jpg"
+            alt="Quai"
+            className="navbar-brand-logo"
+            onError={(event) => {
+              event.currentTarget.src = "/logo.svg";
+            }}
+          />
         </div>
         <div>
           <h1>2-Week Detailed Shortage Report</h1>
@@ -129,6 +140,29 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
         </form>
       </section>
       <div className="status-banner">Data source: NetSuite SuiteQL (live).</div>
+      <section className="view-tabs">
+        <button
+          className={viewMode === "order" ? "active" : ""}
+          onClick={() => setViewMode("order")}
+          type="button"
+        >
+          Grouped by Sales Order
+        </button>
+        <button
+          className={viewMode === "item" ? "active" : ""}
+          onClick={() => setViewMode("item")}
+          type="button"
+        >
+          Grouped by Item
+        </button>
+        <button
+          className={viewMode === "calendar" ? "active" : ""}
+          onClick={() => setViewMode("calendar")}
+          type="button"
+        >
+          Ship Calendar
+        </button>
+      </section>
 
       {loading && <div className="state-box">Loading shortage report...</div>}
       {error && !loading && <div className="error-box">{error}</div>}
@@ -148,17 +182,23 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
             </section>
           ) : (
             <section className="card">
-              <ShortageTable
-                orders={report.orders}
-                expandedOrders={expandedOrders}
-                expandedKits={expandedKits}
-                onToggleOrder={(orderId) =>
-                  setExpandedOrders((current) => ({ ...current, [orderId]: !current[orderId] }))
-                }
-                onToggleKit={(kitId) =>
-                  setExpandedKits((current) => ({ ...current, [kitId]: !current[kitId] }))
-                }
-              />
+              {viewMode === "order" && (
+                <ShortageTable
+                  orders={report.orders}
+                  expandedOrders={expandedOrders}
+                  expandedKits={expandedKits}
+                  onToggleOrder={(orderId) =>
+                    setExpandedOrders((current) => ({ ...current, [orderId]: !current[orderId] }))
+                  }
+                  onToggleKit={(kitId) =>
+                    setExpandedKits((current) => ({ ...current, [kitId]: !current[kitId] }))
+                  }
+                />
+              )}
+              {viewMode === "item" && <ItemGroupedTable orders={report.orders} />}
+              {viewMode === "calendar" && (
+                <ShipCalendar orders={report.orders} initialDate={report.startDate} />
+              )}
             </section>
           )}
         </>

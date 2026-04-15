@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+import hashlib
 import json
 import re
+import time
 from typing import Any
 
 import requests
@@ -245,7 +247,99 @@ def _format_iso_date(value: date | None) -> str | None:
     return value.isoformat()
 
 
+_verified_ddb_tables: set[str] = set()
+
+
+def _cache_key(prefix: str, payload: dict[str, Any]) -> str:
+    fingerprint = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+    return f"{prefix}:{digest}"
+
+
+def _get_ddb_table(settings: Settings):
+    if not settings.netsuite_ddb_cache_enabled or not settings.netsuite_ddb_cache_table:
+        return None
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+    except Exception:
+        return None
+
+    table_name = settings.netsuite_ddb_cache_table
+    dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
+    table = dynamodb.Table(table_name)
+    if table_name in _verified_ddb_tables:
+        return table
+
+    try:
+        table.load()
+    except ClientError as exc:
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code not in {"ResourceNotFoundException", "ValidationException"}:
+            return None
+        try:
+            dynamodb.meta.client.create_table(
+                TableName=table_name,
+                KeySchema=[{"AttributeName": "cache_key", "KeyType": "HASH"}],
+                AttributeDefinitions=[{"AttributeName": "cache_key", "AttributeType": "S"}],
+                BillingMode="PAY_PER_REQUEST",
+            )
+            dynamodb.meta.client.get_waiter("table_exists").wait(TableName=table_name)
+        except Exception:
+            return None
+
+    _verified_ddb_tables.add(table_name)
+    return table
+
+
+def _cache_get(settings: Settings, key: str) -> dict[str, Any] | list[dict[str, Any]] | None:
+    table = _get_ddb_table(settings)
+    if table is None:
+        return None
+    try:
+        response = table.get_item(Key={"cache_key": key}, ConsistentRead=False)
+        item = response.get("Item")
+        if not item:
+            return None
+        now = int(time.time())
+        if int(item.get("expires_at", 0)) <= now:
+            return None
+        payload = item.get("payload")
+        if not isinstance(payload, str):
+            return None
+        return json.loads(payload)
+    except Exception:
+        return None
+
+
+def _cache_set(settings: Settings, key: str, value: dict[str, Any] | list[dict[str, Any]]) -> None:
+    table = _get_ddb_table(settings)
+    if table is None:
+        return
+    try:
+        payload = json.dumps(value, separators=(",", ":"), default=str)
+        if len(payload.encode("utf-8")) > settings.netsuite_ddb_cache_max_payload_bytes:
+            return
+        now = int(time.time())
+        ttl = max(settings.netsuite_query_cache_ttl_seconds, 60)
+        table.put_item(
+            Item={
+                "cache_key": key,
+                "expires_at": now + ttl,
+                "updated_at": now,
+                "payload": payload,
+            }
+        )
+    except Exception:
+        return
+
+
 def list_locations(settings: Settings) -> list[dict[str, Any]]:
+    key = _cache_key("locations:v1", {"realm": settings.netsuite_realm or settings.netsuite_secret_name or "unknown"})
+    cached = _cache_get(settings, key)
+    if isinstance(cached, list):
+        return cached
+
     credentials = get_netsuite_credentials(settings)
     rows = run_suiteql_with_pagination(
         credentials=credentials,
@@ -253,7 +347,9 @@ def list_locations(settings: Settings) -> list[dict[str, Any]]:
         params={},
         page_size=settings.netsuite_query_page_size,
     )
-    return [{"id": _to_int(row.get("id")), "name": str(row.get("name") or "")} for row in rows]
+    result = [{"id": _to_int(row.get("id")), "name": str(row.get("name") or "")} for row in rows]
+    _cache_set(settings, key, result)
+    return result
 
 
 def _fetch_kit_components(
@@ -332,8 +428,20 @@ def get_shortage_report(
     )
     line_params: dict[str, Any] = {}
     if location_id:
-        line_query += " AND tl.location = :location_id"
-        line_params["location_id"] = location_id
+        line_query += f"\n  AND tl.location = {int(location_id)}"
+
+    report_cache_key = _cache_key(
+        "shortage-report:v1",
+        {
+            "realm": settings.netsuite_realm or settings.netsuite_secret_name or "unknown",
+            "location_id": location_id,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+        },
+    )
+    cached_report = _cache_get(settings, report_cache_key)
+    if isinstance(cached_report, dict):
+        return cached_report
 
     line_rows = run_suiteql_with_pagination(
         credentials=credentials,
@@ -440,7 +548,7 @@ def get_shortage_report(
     orders = [order for order in orders_map.values() if order["lines"]]
     orders.sort(key=lambda entry: (entry["date"] or "9999-12-31", entry["soNum"]))
 
-    return {
+    payload = {
         "locationId": location_id,
         "startDate": _format_iso_date(start),
         "endDate": _format_iso_date(end),
@@ -448,3 +556,5 @@ def get_shortage_report(
         "totalOrders": len(orders),
         "asOf": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
+    _cache_set(settings, report_cache_key, payload)
+    return payload
