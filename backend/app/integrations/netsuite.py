@@ -203,6 +203,20 @@ FROM Item i
 WHERE i.id IN (%s)
 """
 
+NEXT_DAY_ORDERS_SUITEQL = """
+SELECT
+  t.id AS so_id,
+  t.tranid AS so_num,
+  BUILTIN.DF(t.entity) AS customer_name,
+  BUILTIN.DF(t.status) AS status_text,
+  TO_CHAR(t.custbody10, 'YYYY-MM-DD') AS ship_date,
+  BUILTIN.DF(t.location) AS location_name
+FROM Transaction t
+WHERE t.type = 'SalesOrd'
+  AND t.custbody10 = TO_DATE('%s', 'YYYY-MM-DD')
+ORDER BY t.tranid
+"""
+
 
 def _to_float(value: Any) -> float:
     if value is None:
@@ -560,4 +574,54 @@ def get_shortage_report(
         "asOf": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     _cache_set(settings, report_cache_key, payload)
+    return payload
+
+
+def get_next_day_orders(settings: Settings, target_date: date | None = None) -> dict[str, Any]:
+    effective_date = target_date or (datetime.now(timezone.utc).date() + timedelta(days=1))
+    cache_key = _cache_key(
+        "next-day-orders:v1",
+        {
+            "realm": settings.netsuite_realm or settings.netsuite_secret_name or "unknown",
+            "date": effective_date.isoformat(),
+        },
+    )
+    cached_payload = _cache_get(settings, cache_key)
+    if isinstance(cached_payload, dict):
+        return cached_payload
+
+    credentials = get_netsuite_credentials(settings)
+    query = NEXT_DAY_ORDERS_SUITEQL % effective_date.isoformat()
+    rows = run_suiteql_with_pagination(
+        credentials=credentials,
+        query=query,
+        params={},
+        page_size=settings.netsuite_query_page_size,
+    )
+    orders: list[dict[str, Any]] = []
+    unconfirmed = 0
+    for row in rows:
+        status = str(row.get("status_text") or "")
+        confirmed = "confirm" in status.lower()
+        if not confirmed:
+            unconfirmed += 1
+        orders.append(
+            {
+                "soNum": str(row.get("so_num") or ""),
+                "customer": str(row.get("customer_name") or ""),
+                "status": status,
+                "isConfirmed": confirmed,
+                "shipDate": str(row.get("ship_date") or ""),
+                "location": str(row.get("location_name") or ""),
+            }
+        )
+
+    payload = {
+        "date": effective_date.isoformat(),
+        "totalOrders": len(orders),
+        "unconfirmedOrders": unconfirmed,
+        "orders": orders,
+        "asOf": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    _cache_set(settings, cache_key, payload)
     return payload

@@ -346,6 +346,26 @@ button:disabled {
   color: #6c645e;
 }
 
+.daily-board {
+  display: grid;
+  gap: 14px;
+}
+
+.daily-board h3 {
+  margin: 0;
+}
+
+.daily-checklist {
+  display: grid;
+  gap: 8px;
+}
+
+.daily-checklist label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 @media (max-width: 900px) {
   .topbar {
     grid-template-columns: 1fr;

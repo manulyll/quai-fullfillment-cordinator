@@ -3,7 +3,12 @@ import { ItemGroupedTable } from "../components/ItemGroupedTable";
 import { ShipCalendar } from "../components/ShipCalendar";
 import { ShortageTable } from "../components/ShortageTable";
 import { apiClient } from "../lib/api";
-import type { LocationOption, ShortageReportResponse, UserInfo } from "../lib/types";
+import type {
+  LocationOption,
+  NextDayOrdersResponse,
+  ShortageReportResponse,
+  UserInfo
+} from "../lib/types";
 
 type ShortagePageProps = {
   token: string;
@@ -25,11 +30,13 @@ const defaultDateRange = (): { startDate: string; endDate: string } => {
 };
 
 export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
-  type ViewMode = "order" | "item" | "calendar";
+  type ViewMode = "order" | "item" | "calendar" | "daily";
+  const logoSrc = "/logo.jpg?v=20260415";
   const defaults = useMemo(defaultDateRange, []);
   const [me, setMe] = useState<UserInfo | null>(null);
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [report, setReport] = useState<ShortageReportResponse | null>(null);
+  const [nextDay, setNextDay] = useState<NextDayOrdersResponse | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("order");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +45,14 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
   const [endDate, setEndDate] = useState(defaults.endDate);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [expandedKits, setExpandedKits] = useState<Record<string, boolean>>({});
+  const [dailyChecklist, setDailyChecklist] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem("quai-daily-checklist");
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  });
 
   const loadReport = async (nextFilters?: { locationId?: number; startDate?: string; endDate?: string }) => {
     setLoading(true);
@@ -50,12 +65,14 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
       };
       const user = await apiClient.getMe(token);
       setMe(user);
-      const [locationsPayload, reportPayload] = await Promise.all([
+      const [locationsPayload, reportPayload, nextDayPayload] = await Promise.all([
         apiClient.getLocations(token),
-        apiClient.getShortages(token, filters)
+        apiClient.getShortages(token, filters),
+        apiClient.getNextDayOrders(token)
       ]);
       setLocations(locationsPayload.locations);
       setReport(reportPayload);
+      setNextDay(nextDayPayload);
       setExpandedOrders(
         reportPayload.orders.reduce<Record<string, boolean>>((acc, order) => {
           acc[order.soNum] = true;
@@ -68,6 +85,14 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleChecklist = (key: string) => {
+    setDailyChecklist((current) => {
+      const updated = { ...current, [key]: !current[key] };
+      localStorage.setItem("quai-daily-checklist", JSON.stringify(updated));
+      return updated;
+    });
   };
 
   useEffect(() => {
@@ -91,7 +116,7 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
       <header className="topbar">
         <div className="navbar-title">
           <img
-            src="/logo.jpg"
+            src={logoSrc}
             alt="Quai"
             className="navbar-brand-logo"
             onError={(event) => {
@@ -162,6 +187,13 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
         >
           Ship Calendar
         </button>
+        <button
+          className={viewMode === "daily" ? "active" : ""}
+          onClick={() => setViewMode("daily")}
+          type="button"
+        >
+          Daily Coordinator
+        </button>
       </section>
 
       {loading && <div className="state-box">Loading shortage report...</div>}
@@ -176,7 +208,7 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
             <span>As of: {new Date(report.asOf).toLocaleString()}</span>
           </section>
 
-          {report.orders.length === 0 ? (
+          {report.orders.length === 0 && viewMode !== "daily" ? (
             <section className="card">
               <div className="state-box">No shortages found for the selected filters.</div>
             </section>
@@ -198,6 +230,57 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
               {viewMode === "item" && <ItemGroupedTable orders={report.orders} />}
               {viewMode === "calendar" && (
                 <ShipCalendar orders={report.orders} initialDate={report.startDate} />
+              )}
+              {viewMode === "daily" && (
+                <section className="daily-board">
+                  <div className="state-box">
+                    Next-day date: {nextDay?.date ?? "-"} | Total orders: {nextDay?.totalOrders ?? 0} | Unconfirmed:{" "}
+                    {nextDay?.unconfirmedOrders ?? 0}
+                  </div>
+                  <h3>Required Daily Actions</h3>
+                  <div className="daily-checklist">
+                    {[
+                      "Verify all next-day orders are confirmed",
+                      "Call customers for unconfirmed orders",
+                      "Print next-day picking lists",
+                      "Prepare and label boxes with SO numbers",
+                      "Prepare posts/accessories and labels",
+                      "Run final quality control before preparation"
+                    ].map((task) => (
+                      <label key={task}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(dailyChecklist[task])}
+                          onChange={() => toggleChecklist(task)}
+                        />
+                        <span>{task}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <h3>Next-Day Order Status</h3>
+                  <table className="shortage-table">
+                    <thead>
+                      <tr>
+                        <th>SO</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Ship Date</th>
+                        <th>Location</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(nextDay?.orders ?? []).map((order) => (
+                        <tr key={order.soNum} className={order.isConfirmed ? "" : "shortage-row"}>
+                          <td>{order.soNum}</td>
+                          <td>{order.customer}</td>
+                          <td>{order.status || "Unknown"}</td>
+                          <td>{order.shipDate}</td>
+                          <td>{order.location || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
               )}
             </section>
           )}

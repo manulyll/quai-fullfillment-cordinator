@@ -49,3 +49,20 @@ export type LocationOption = {
 export type LocationOptionsResponse = {
   locations: LocationOption[];
 };
+
+export type NextDayOrder = {
+  soNum: string;
+  customer: string;
+  status: string;
+  isConfirmed: boolean;
+  shipDate: string;
+  location: string;
+};
+
+export type NextDayOrdersResponse = {
+  date: string;
+  totalOrders: number;
+  unconfirmedOrders: number;
+  orders: NextDayOrder[];
+  asOf: string;
+};

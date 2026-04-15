@@ -1,5 +1,10 @@
 import { config } from "./config";
-import type { LocationOptionsResponse, ShortageReportResponse, UserInfo } from "./types";
+import type {
+  LocationOptionsResponse,
+  NextDayOrdersResponse,
+  ShortageReportResponse,
+  UserInfo
+} from "./types";
 
 const withAuthHeaders = (token: string): HeadersInit => ({
   "Content-Type": "application/json",
@@ -47,5 +52,7 @@ export const apiClient = {
     fetchJson<ShortageReportResponse>(
       apiUrl(`/api/shortages/report${toQuery(filters)}`),
       token
-    )
+    ),
+  getNextDayOrders: (token: string, date?: string): Promise<NextDayOrdersResponse> =>
+    fetchJson<NextDayOrdersResponse>(apiUrl(`/api/shortages/next-day${toQuery({ date })}`), token)
 };

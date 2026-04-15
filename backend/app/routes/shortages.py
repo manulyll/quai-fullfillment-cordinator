@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from app.auth import require_any_role
 from app.config import Settings, get_settings
-from app.integrations.netsuite import get_shortage_report, list_locations
+from app.integrations.netsuite import get_next_day_orders, get_shortage_report, list_locations
 
 router = APIRouter(prefix="/api/shortages", tags=["shortages"])
 
@@ -57,6 +57,23 @@ class LocationOptionsResponse(BaseModel):
     locations: list[LocationOption]
 
 
+class NextDayOrder(BaseModel):
+    soNum: str
+    customer: str
+    status: str
+    isConfirmed: bool
+    shipDate: str
+    location: str
+
+
+class NextDayOrdersResponse(BaseModel):
+    date: str
+    totalOrders: int
+    unconfirmedOrders: int
+    orders: list[NextDayOrder]
+    asOf: str
+
+
 @router.get("/locations", response_model=LocationOptionsResponse)
 async def shortage_locations(
     _: dict[str, Any] = Depends(require_any_role({"admin", "sales_manager", "viewer"})),
@@ -80,3 +97,13 @@ async def shortage_report(
         end_date=end_date,
     )
     return ShortageReportResponse(**payload)
+
+
+@router.get("/next-day", response_model=NextDayOrdersResponse)
+async def next_day_orders(
+    date_param: date | None = Query(default=None, alias="date"),
+    _: dict[str, Any] = Depends(require_any_role({"admin", "sales_manager", "viewer"})),
+    settings: Settings = Depends(get_settings),
+) -> NextDayOrdersResponse:
+    payload = get_next_day_orders(settings=settings, target_date=date_param)
+    return NextDayOrdersResponse(**payload)

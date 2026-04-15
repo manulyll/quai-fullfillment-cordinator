@@ -5,6 +5,7 @@ type LoginPageProps = {
 };
 
 export const LoginPage = ({ onLogin }: LoginPageProps) => {
+  const logoSrc = "/logo.jpg?v=20260415";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ export const LoginPage = ({ onLogin }: LoginPageProps) => {
     <main className="centered-page">
       <section className="card auth-card">
         <img
-          src="/logo.jpg"
+          src={logoSrc}
           alt="Quai"
           className="landing-brand-logo"
           onError={(event) => {
