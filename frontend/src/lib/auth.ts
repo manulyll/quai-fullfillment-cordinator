@@ -1,4 +1,4 @@
-const MVP_USERNAME = "frontend quai";
+const MVP_ALLOWED_USERNAMES = new Set(["frontend quai", "quai"]);
 const MVP_PASSWORD = "admin";
 const MVP_TOKEN = "quai-mvp-token";
 const MVP_STORAGE_KEY = "quai-mvp-session";
@@ -10,7 +10,7 @@ export type AuthSession = {
 
 export const signIn = async (username: string, password: string): Promise<AuthSession> => {
   const normalizedUsername = username.trim().toLowerCase();
-  if (normalizedUsername !== MVP_USERNAME || password !== MVP_PASSWORD) {
+  if (!MVP_ALLOWED_USERNAMES.has(normalizedUsername) || password !== MVP_PASSWORD) {
     throw new Error("Invalid credentials");
   }
   const session: AuthSession = { idToken: MVP_TOKEN, accessToken: MVP_TOKEN };
