@@ -8,3 +8,4 @@ backend/app/__pycache__/
 backend/app/routes/__pycache__/
 backend/app/integrations/__pycache__/
 *.pyc
+local-test/secrets.json
