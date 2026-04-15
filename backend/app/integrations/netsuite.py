@@ -266,30 +266,33 @@ def _get_ddb_table(settings: Settings):
         return None
 
     table_name = settings.netsuite_ddb_cache_table
-    dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
-    table = dynamodb.Table(table_name)
-    if table_name in _verified_ddb_tables:
-        return table
-
     try:
-        table.load()
-    except ClientError as exc:
-        error_code = exc.response.get("Error", {}).get("Code")
-        if error_code not in {"ResourceNotFoundException", "ValidationException"}:
-            return None
-        try:
-            dynamodb.meta.client.create_table(
-                TableName=table_name,
-                KeySchema=[{"AttributeName": "cache_key", "KeyType": "HASH"}],
-                AttributeDefinitions=[{"AttributeName": "cache_key", "AttributeType": "S"}],
-                BillingMode="PAY_PER_REQUEST",
-            )
-            dynamodb.meta.client.get_waiter("table_exists").wait(TableName=table_name)
-        except Exception:
-            return None
+        dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
+        table = dynamodb.Table(table_name)
+        if table_name in _verified_ddb_tables:
+            return table
 
-    _verified_ddb_tables.add(table_name)
-    return table
+        try:
+            table.load()
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code")
+            if error_code not in {"ResourceNotFoundException", "ValidationException"}:
+                return None
+            try:
+                dynamodb.meta.client.create_table(
+                    TableName=table_name,
+                    KeySchema=[{"AttributeName": "cache_key", "KeyType": "HASH"}],
+                    AttributeDefinitions=[{"AttributeName": "cache_key", "AttributeType": "S"}],
+                    BillingMode="PAY_PER_REQUEST",
+                )
+                dynamodb.meta.client.get_waiter("table_exists").wait(TableName=table_name)
+            except Exception:
+                return None
+
+        _verified_ddb_tables.add(table_name)
+        return table
+    except Exception:
+        return None
 
 
 def _cache_get(settings: Settings, key: str) -> dict[str, Any] | list[dict[str, Any]] | None:
