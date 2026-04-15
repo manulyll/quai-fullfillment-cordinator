@@ -54,4 +54,7 @@ if frontend_dist_dir.exists():
         reserved_prefixes = ("api", "health", "docs", "redoc", "openapi.json", "assets")
         if full_path.startswith(reserved_prefixes):
             raise HTTPException(status_code=404, detail="Not found")
+        requested = (frontend_dist_dir / full_path).resolve()
+        if requested.is_file() and requested.is_relative_to(frontend_dist_dir.resolve()):
+            return FileResponse(requested)
         return FileResponse(frontend_dist_dir / "index.html")
