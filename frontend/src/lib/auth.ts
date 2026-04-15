@@ -1,64 +1,39 @@
-import {
-  AuthenticationDetails,
-  CognitoUser,
-  CognitoUserPool,
-  CognitoUserSession
-} from "amazon-cognito-identity-js";
-import { config } from "./config";
-
-const userPool = new CognitoUserPool({
-  UserPoolId: config.cognitoUserPoolId,
-  ClientId: config.cognitoClientId
-});
+const MVP_USERNAME = "frontend quai";
+const MVP_PASSWORD = "admin";
+const MVP_TOKEN = "quai-mvp-token";
+const MVP_STORAGE_KEY = "quai-mvp-session";
 
 export type AuthSession = {
   idToken: string;
   accessToken: string;
 };
 
-const getCurrentCognitoUser = (): CognitoUser | null => userPool.getCurrentUser();
+export const signIn = async (username: string, password: string): Promise<AuthSession> => {
+  const normalizedUsername = username.trim().toLowerCase();
+  if (normalizedUsername !== MVP_USERNAME || password !== MVP_PASSWORD) {
+    throw new Error("Invalid credentials");
+  }
+  const session: AuthSession = { idToken: MVP_TOKEN, accessToken: MVP_TOKEN };
+  localStorage.setItem(MVP_STORAGE_KEY, JSON.stringify(session));
+  return session;
+};
 
-export const signIn = (username: string, password: string): Promise<AuthSession> =>
-  new Promise((resolve, reject) => {
-    const authDetails = new AuthenticationDetails({
-      Username: username,
-      Password: password
-    });
-    const cognitoUser = new CognitoUser({
-      Username: username,
-      Pool: userPool
-    });
-
-    cognitoUser.authenticateUser(authDetails, {
-      onSuccess: (session) =>
-        resolve({
-          idToken: session.getIdToken().getJwtToken(),
-          accessToken: session.getAccessToken().getJwtToken()
-        }),
-      onFailure: (error) => reject(error)
-    });
-  });
-
-export const getCurrentSession = (): Promise<AuthSession | null> =>
-  new Promise((resolve) => {
-    const user = getCurrentCognitoUser();
-    if (!user) {
-      resolve(null);
-      return;
+export const getCurrentSession = async (): Promise<AuthSession | null> => {
+  const raw = localStorage.getItem(MVP_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as AuthSession;
+    if (parsed.idToken !== MVP_TOKEN || parsed.accessToken !== MVP_TOKEN) {
+      return null;
     }
-    user.getSession((error: Error | null, session: CognitoUserSession | null) => {
-      if (error || !session?.isValid()) {
-        resolve(null);
-        return;
-      }
-      resolve({
-        idToken: session.getIdToken().getJwtToken(),
-        accessToken: session.getAccessToken().getJwtToken()
-      });
-    });
-  });
+    return parsed;
+  } catch {
+    return null;
+  }
+};
 
 export const signOut = (): void => {
-  const user = getCurrentCognitoUser();
-  user?.signOut();
+  localStorage.removeItem(MVP_STORAGE_KEY);
 };
