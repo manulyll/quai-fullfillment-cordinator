@@ -21,4 +21,4 @@ COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 EXPOSE 8080
 
 # Railway injects PORT at runtime.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}
+CMD uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8080}
