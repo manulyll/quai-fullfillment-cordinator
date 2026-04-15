@@ -44,12 +44,12 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
         startDate,
         endDate
       };
-      const [user, locationsPayload, reportPayload] = await Promise.all([
-        apiClient.getMe(token),
+      const user = await apiClient.getMe(token);
+      setMe(user);
+      const [locationsPayload, reportPayload] = await Promise.all([
         apiClient.getLocations(token),
         apiClient.getShortages(token, filters)
       ]);
-      setMe(user);
       setLocations(locationsPayload.locations);
       setReport(reportPayload);
       setExpandedOrders(
@@ -85,6 +85,9 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
   return (
     <main className="dashboard-page">
       <header className="topbar">
+        <div className="navbar-title">
+          <img src="/logo.svg" alt="Quai" className="navbar-brand-logo" />
+        </div>
         <div>
           <h1>2-Week Detailed Shortage Report</h1>
           <p>
@@ -125,6 +128,7 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
           </button>
         </form>
       </section>
+      <div className="status-banner">Data source: NetSuite SuiteQL (live).</div>
 
       {loading && <div className="state-box">Loading shortage report...</div>}
       {error && !loading && <div className="error-box">{error}</div>}

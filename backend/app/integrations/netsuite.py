@@ -152,17 +152,14 @@ SELECT
   tl.id AS line_id,
   tl.item AS item_id,
   BUILTIN.DF(tl.item) AS item_name,
-  NVL(tl.quantity, 0) AS ordered_qty,
+  ABS(NVL(tl.quantity, 0)) AS ordered_qty,
   CASE WHEN i.itemtype = 'Kit' THEN 'T' ELSE 'F' END AS is_kit
 FROM Transaction t
 JOIN TransactionLine tl ON tl.transaction = t.id
 JOIN Item i ON i.id = tl.item
 WHERE t.type = 'SalesOrd'
-  AND t.status IN ('SalesOrd:B', 'SalesOrd:D')
   AND tl.mainline = 'F'
   AND tl.taxline = 'F'
-  AND tl.shipping = 'F'
-  AND tl.cogs = 'F'
   AND t.custbody10 >= TO_DATE(:start_date, 'YYYY-MM-DD')
   AND t.custbody10 <= TO_DATE(:end_date, 'YYYY-MM-DD')
 """
@@ -181,11 +178,8 @@ INVENTORY_SUITEQL = """
 SELECT
   i.id AS item_id,
   BUILTIN.DF(i.id) AS item_name,
-  NVL(il.quantityonhand, 0) AS on_hand
+  NVL(i.quantityonhand, 0) AS on_hand
 FROM Item i
-LEFT JOIN InventoryItemLocation il
-  ON il.item = i.id
-  AND il.location = :location_id
 WHERE i.id IN (%s)
 """
 
@@ -193,11 +187,9 @@ INVENTORY_GLOBAL_SUITEQL = """
 SELECT
   i.id AS item_id,
   BUILTIN.DF(i.id) AS item_name,
-  NVL(SUM(il.quantityonhand), 0) AS on_hand
+  NVL(i.quantityonhand, 0) AS on_hand
 FROM Item i
-LEFT JOIN InventoryItemLocation il ON il.item = i.id
 WHERE i.id IN (%s)
-GROUP BY i.id, BUILTIN.DF(i.id)
 """
 
 
@@ -297,7 +289,7 @@ def _fetch_inventory(
 
     in_list = ",".join(str(item_id) for item_id in sorted(set(item_ids)))
     query = INVENTORY_SUITEQL if location_id else INVENTORY_GLOBAL_SUITEQL
-    params = {"location_id": location_id} if location_id else {}
+    params: dict[str, Any] = {}
     rows = run_suiteql_with_pagination(
         credentials=credentials,
         query=query % in_list,
