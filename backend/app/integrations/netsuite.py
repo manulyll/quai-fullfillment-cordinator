@@ -460,7 +460,7 @@ def get_shortage_report(
                 "serviceType": str(row.get("service_type") or ""),
                 "status": str(row.get("status_text") or ""),
                 "location": str(row.get("location_name") or ""),
-                "city": "",
+                "city": str(row.get("ship_city") or ""),
                 "date": ship_date,
                 "totalOrdered": 0.0,
                 "lines": [],
@@ -662,7 +662,7 @@ def get_picking_ticket_html(settings: Settings, so_num: str) -> str:
       <div><strong>Service Type:</strong> {str(header.get("service_type") or "-")}</div>
       <div><strong>Status:</strong> {str(header.get("status_text") or "-")}</div>
       <div><strong>Location:</strong> {str(header.get("location_name") or "-")}</div>
-      <div><strong>City:</strong> -</div>
+      <div><strong>City:</strong> {str(header.get("ship_city") or "-")}</div>
     </div>
     <table>
       <thead><tr><th>Item</th><th style='text-align:right'>Qty</th><th>Picked</th></tr></thead>

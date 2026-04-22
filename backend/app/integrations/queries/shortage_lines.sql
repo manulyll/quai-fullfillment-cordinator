@@ -5,6 +5,7 @@ SELECT
   BUILTIN.DF(t.custbodyserviceprecis) AS service_type,
   BUILTIN.DF(t.status) AS status_text,
   BUILTIN.DF(tl.location) AS location_name,
+  tsa.city AS ship_city,
   TO_CHAR(t.custbody10, 'YYYY-MM-DD') AS ship_date,
   tl.id AS line_id,
   tl.item AS item_id,
@@ -14,6 +15,7 @@ SELECT
 FROM Transaction t
 JOIN TransactionLine tl ON tl.transaction = t.id
 JOIN Item i ON i.id = tl.item
+LEFT JOIN transactionShippingAddress tsa ON tsa.nKey = t.shippingAddress
 WHERE t.type = 'SalesOrd'
   AND tl.mainline = 'F'
   AND tl.taxline = 'F'

@@ -96,7 +96,7 @@ export const ShipCalendar = ({ orders, initialDate }: ShipCalendarProps) => {
                     rel="noreferrer"
                     title={`Open picking ticket for ${order.soNum}`}
                   >
-                    {order.soNum} | {order.city || order.customer} | {order.serviceType || "-"}
+                    {order.soNum} | {order.city || order.customer} | {order.serviceType || "-"} | {order.status || "-"}
                   </a>
                 ))}
                 {(bucket?.orders.length ?? 0) > 3 && (

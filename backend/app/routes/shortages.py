@@ -117,7 +117,6 @@ async def next_day_orders(
 @router.get("/picking-ticket/{so_num}", response_class=HTMLResponse)
 async def picking_ticket(
     so_num: str,
-    _: dict[str, Any] = Depends(require_any_role({"admin", "sales_manager", "viewer"})),
     settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
     try:
