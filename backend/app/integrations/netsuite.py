@@ -164,6 +164,8 @@ INVENTORY_GLOBAL_SUITEQL = _read_query("inventory_global.sql")
 NEXT_DAY_ORDERS_SUITEQL = _read_query("next_day_orders.sql")
 PICKING_TICKET_HEADER_SUITEQL = _read_query("picking_ticket_header.sql")
 PICKING_TICKET_LINES_SUITEQL = _read_query("picking_ticket_lines.sql")
+EVENT_STATUS_BY_TRANSACTION_IDS_SUITEQL = _read_query("event_status_by_transaction_ids.sql")
+LINE_LOCATION_BY_TRANSACTION_IDS_SUITEQL = _read_query("line_location_by_transaction_ids.sql")
 
 
 def _to_float(value: Any) -> float:
@@ -375,6 +377,46 @@ def _fetch_inventory(
     }
 
 
+def _fetch_event_status_by_so_ids(
+    credentials: NetSuiteCredentials,
+    page_size: int,
+    so_ids: list[int],
+) -> dict[int, str]:
+    if not so_ids:
+        return {}
+    in_list = ",".join(str(so_id) for so_id in sorted(set(so_ids)))
+    rows = run_suiteql_with_pagination(
+        credentials=credentials,
+        query=EVENT_STATUS_BY_TRANSACTION_IDS_SUITEQL % in_list,
+        params={},
+        page_size=page_size,
+    )
+    return {_to_int(row.get("so_id")): str(row.get("event_status") or "") for row in rows}
+
+
+def _fetch_line_locations_by_so_ids(
+    credentials: NetSuiteCredentials,
+    page_size: int,
+    so_ids: list[int],
+) -> dict[int, str]:
+    if not so_ids:
+        return {}
+    in_list = ",".join(str(so_id) for so_id in sorted(set(so_ids)))
+    rows = run_suiteql_with_pagination(
+        credentials=credentials,
+        query=LINE_LOCATION_BY_TRANSACTION_IDS_SUITEQL % in_list,
+        params={},
+        page_size=page_size,
+    )
+    locations: dict[int, str] = {}
+    for row in rows:
+        so_id = _to_int(row.get("so_id"))
+        location_name = str(row.get("location_name") or "")
+        if so_id and location_name and so_id not in locations:
+            locations[so_id] = location_name
+    return locations
+
+
 def get_shortage_report(
     settings: Settings,
     location_id: int | None,
@@ -417,7 +459,9 @@ def get_shortage_report(
 
     kit_item_ids: list[int] = []
     valid_rows: list[dict[str, Any]] = []
+    so_ids: list[int] = []
     for row in line_rows:
+        so_ids.append(_to_int(row.get("so_id")))
         item_id = _to_int(row.get("item_id"))
         item_name = str(row.get("item_name") or "")
         if not _item_allowed(item_id, item_name):
@@ -427,6 +471,7 @@ def get_shortage_report(
             kit_item_ids.append(item_id)
 
     components_by_kit = _fetch_kit_components(credentials, settings.netsuite_query_page_size, kit_item_ids)
+    event_status_by_so = _fetch_event_status_by_so_ids(credentials, settings.netsuite_query_page_size, so_ids)
 
     inventory_item_ids: list[int] = []
     for row in valid_rows:
@@ -447,6 +492,7 @@ def get_shortage_report(
     orders_map: dict[str, dict[str, Any]] = {}
     for row in valid_rows:
         so_num = str(row.get("so_num") or "")
+        so_id = _to_int(row.get("so_id"))
         item_id = _to_int(row.get("item_id"))
         item_name = str(row.get("item_name") or "").split(":")[-1].strip()
         ordered_qty = _to_float(row.get("ordered_qty"))
@@ -458,7 +504,7 @@ def get_shortage_report(
                 "soNum": so_num,
                 "customer": str(row.get("customer_name") or ""),
                 "serviceType": str(row.get("service_type") or ""),
-                "status": str(row.get("status_text") or ""),
+                "status": event_status_by_so.get(so_id, str(row.get("status_text") or "")),
                 "location": str(row.get("location_name") or ""),
                 "city": str(row.get("ship_city") or ""),
                 "date": ship_date,
@@ -555,8 +601,14 @@ def get_next_day_orders(settings: Settings, target_date: date | None = None, loc
     )
     orders: list[dict[str, Any]] = []
     unconfirmed = 0
+    so_ids: list[int] = []
     for row in rows:
-        status = str(row.get("status_text") or "")
+        so_ids.append(_to_int(row.get("so_id")))
+    event_status_by_so = _fetch_event_status_by_so_ids(credentials, settings.netsuite_query_page_size, so_ids)
+    line_location_by_so = _fetch_line_locations_by_so_ids(credentials, settings.netsuite_query_page_size, so_ids)
+    for row in rows:
+        so_id = _to_int(row.get("so_id"))
+        status = event_status_by_so.get(so_id, str(row.get("status_text") or ""))
         confirmed = "confirm" in status.lower()
         if not confirmed:
             unconfirmed += 1
@@ -567,7 +619,7 @@ def get_next_day_orders(settings: Settings, target_date: date | None = None, loc
                 "status": status,
                 "isConfirmed": confirmed,
                 "shipDate": str(row.get("ship_date") or ""),
-                "location": str(row.get("location_name") or ""),
+                "location": line_location_by_so.get(so_id, str(row.get("location_name") or "")),
             }
         )
 
