@@ -371,7 +371,7 @@ def _fetch_inventory(
     return {
         _to_int(row.get("item_id")): {
             "name": str(row.get("item_name") or "").split(":")[-1].strip(),
-            "onHand": _to_float(row.get("on_hand")),
+            "onHand": max(_to_float(row.get("on_hand")), 0.0),
         }
         for row in rows
     }

@@ -104,6 +104,13 @@ export const ShipCalendar = ({ orders, initialDate }: ShipCalendarProps) => {
           Next
         </button>
       </div>
+      <div className="calendar-legend">
+        <span className="legend-pill legend-confirmed">Confirmed / Closed / Billed</span>
+        <span className="legend-pill legend-tentative">Tentative</span>
+        <span className="legend-pill legend-pending">Pending Fulfillment / Billing</span>
+        <span className="legend-pill legend-partial">Partially Fulfilled</span>
+        <span className="legend-pill legend-unknown">Other</span>
+      </div>
 
       <div className="calendar-grid">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((name) => (

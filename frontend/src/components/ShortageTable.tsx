@@ -71,7 +71,7 @@ export const ShortageTable = ({
                       </td>
                       <td>{order.customer}</td>
                       <td>{order.serviceType || "-"}</td>
-                      <td>{order.status || "-"}</td>
+                      <td />
                       <td>{line.date || "-"}</td>
                       <td>{numberFormat.format(line.orderedQty)}</td>
                       <td>-</td>
@@ -98,7 +98,7 @@ export const ShortageTable = ({
                   <td className="indent-1">{line.itemName}</td>
                   <td>{order.customer}</td>
                   <td>{order.serviceType || "-"}</td>
-                  <td>{order.status || "-"}</td>
+                  <td />
                   <td>{line.date || "-"}</td>
                   <td>{numberFormat.format(line.orderedQty)}</td>
                   <td>{numberFormat.format(line.onHandQty ?? 0)}</td>

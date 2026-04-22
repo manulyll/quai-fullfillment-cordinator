@@ -297,6 +297,51 @@ button:disabled {
   margin: 0;
 }
 
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.legend-pill {
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  font-weight: 600;
+}
+
+.legend-confirmed {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #065f46;
+}
+
+.legend-tentative {
+  background: #efe3ff;
+  border-color: #a855f7;
+  color: #581c87;
+}
+
+.legend-pending {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.legend-partial {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #7f1d1d;
+}
+
+.legend-unknown {
+  background: #dbeafe;
+  border-color: #3b82f6;
+  color: #1e3a8a;
+}
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
