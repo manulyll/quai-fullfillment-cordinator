@@ -1,15 +1,17 @@
+from pathlib import Path
 from utils import query_netsuite
 import json
 import requests
 
+QUERIES_DIR = Path(__file__).resolve().parents[1] / "backend" / "app" / "integrations" / "queries"
+
+
+def read_query(name: str) -> str:
+    return (QUERIES_DIR / name).read_text(encoding="utf-8").strip()
+
 
 TEST_QUERIES = {
-    "locations": """
-        SELECT id, name
-        FROM Location
-        WHERE isinactive = 'F'
-        ORDER BY name
-    """,
+    "locations": read_query("location.sql"),
     "sales_lines_smoke": """
         SELECT
           t.tranid AS so_num,
@@ -24,46 +26,20 @@ TEST_QUERIES = {
           AND tl.mainline = 'F'
           AND tl.taxline = 'F'
           AND t.custbody10 IS NOT NULL
-          AND t.trandate >= CURRENT_DATE - 30
+          AND t.custbody10 >= TO_DATE('2026-04-01', 'YYYY-MM-DD')
         ORDER BY t.tranid DESC
     """,
-    "backend_shortage_line_query_smoke": """
-        SELECT
-          t.id AS so_id,
-          t.tranid AS so_num,
-          BUILTIN.DF(t.entity) AS customer_name,
-          BUILTIN.DF(t.custbodyserviceprecis) AS service_type,
-          TO_CHAR(t.custbody10, 'YYYY-MM-DD') AS ship_date,
-          tl.id AS line_id,
-          tl.item AS item_id,
-          BUILTIN.DF(tl.item) AS item_name,
-          NVL(tl.quantity, 0) AS ordered_qty,
-          CASE WHEN i.itemtype = 'Kit' THEN 'T' ELSE 'F' END AS is_kit
-        FROM Transaction t
-        JOIN TransactionLine tl ON tl.transaction = t.id
-        JOIN Item i ON i.id = tl.item
-        WHERE t.type = 'SalesOrd'
-          AND tl.mainline = 'F'
-          AND tl.taxline = 'F'
-          AND t.custbody10 IS NOT NULL
-          AND t.trandate >= CURRENT_DATE - 30
-        ORDER BY t.tranid DESC
-    """,
-    "itemmember_smoke": """
-        SELECT
-          im.parentitem AS kit_item_id,
-          im.item AS component_item_id,
-          NVL(im.quantity, 0) AS component_qty_per_kit,
-          BUILTIN.DF(im.item) AS component_item_name
-        FROM itemmember im
-    """,
+    "backend_shortage_line_query_smoke": read_query("shortage_lines.sql") + "\nORDER BY t.tranid DESC",
+    "itemmember_smoke": read_query("kit_components.sql").replace("WHERE im.parentitem IN (%s)", "WHERE im.parentitem IS NOT NULL"),
     "item_onhand_smoke": """
         SELECT
-          i.id AS item_id,
-          BUILTIN.DF(i.id) AS item_name,
-          NVL(i.quantityonhand, 0) AS on_hand
-        FROM Item i
-        WHERE i.id IS NOT NULL
+          ail.item AS item_id,
+          BUILTIN.DF(ail.item) AS item_name,
+          ail.location AS location_id,
+          BUILTIN.DF(ail.location) AS location_name,
+          NVL(ail.quantityonhand, 0) AS on_hand
+        FROM AggregateItemLocation ail
+        WHERE NVL(ail.quantityonhand, 0) > 0
     """,
 }
 
