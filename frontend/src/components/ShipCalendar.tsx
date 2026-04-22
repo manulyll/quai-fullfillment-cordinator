@@ -29,6 +29,20 @@ const buildGrid = (month: Date): Date[] => {
   });
 };
 
+const statusClassName = (status: string): string => {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("closed") || normalized.includes("billed")) {
+    return "calendar-chip status-confirmed";
+  }
+  if (normalized.includes("pending billing/partially fulfilled") || normalized.includes("partial")) {
+    return "calendar-chip status-partial";
+  }
+  if (normalized.includes("pending fulfillment") || normalized.includes("pending billing")) {
+    return "calendar-chip status-pending";
+  }
+  return "calendar-chip status-unknown";
+};
+
 export const ShipCalendar = ({ orders, initialDate }: ShipCalendarProps) => {
   const initial = initialDate ? new Date(`${initialDate}T00:00:00Z`) : new Date();
   const [activeMonth, setActiveMonth] = useState(startOfMonth(initial));
@@ -90,7 +104,7 @@ export const ShipCalendar = ({ orders, initialDate }: ShipCalendarProps) => {
                 {(bucket?.orders ?? []).slice(0, 3).map((order) => (
                   <a
                     key={`${key}-${order.soNum}`}
-                    className="calendar-chip"
+                    className={statusClassName(order.status || "")}
                     href={`/api/shortages/picking-ticket/${encodeURIComponent(order.soNum)}`}
                     target="_blank"
                     rel="noreferrer"
