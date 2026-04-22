@@ -27,6 +27,9 @@ export type ShortageOrder = {
   soNum: string;
   customer: string;
   serviceType: string;
+  status: string;
+  location: string;
+  city: string;
   date?: string | null;
   totalOrdered: number;
   lines: ShortageLine[];

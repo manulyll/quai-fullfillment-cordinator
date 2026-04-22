@@ -88,9 +88,16 @@ export const ShipCalendar = ({ orders, initialDate }: ShipCalendarProps) => {
               <div className="calendar-day-head">{day.getUTCDate()}</div>
               <div className="calendar-day-list">
                 {(bucket?.orders ?? []).slice(0, 3).map((order) => (
-                  <div key={`${key}-${order.soNum}`} className="calendar-chip">
-                    {order.soNum} - {order.customer}
-                  </div>
+                  <a
+                    key={`${key}-${order.soNum}`}
+                    className="calendar-chip"
+                    href={`/api/shortages/picking-ticket/${encodeURIComponent(order.soNum)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`Open picking ticket for ${order.soNum}`}
+                  >
+                    {order.soNum} | {order.city || order.customer} | {order.serviceType || "-"}
+                  </a>
                 ))}
                 {(bucket?.orders.length ?? 0) > 3 && (
                   <div className="calendar-more">+{(bucket?.orders.length ?? 0) - 3} more</div>

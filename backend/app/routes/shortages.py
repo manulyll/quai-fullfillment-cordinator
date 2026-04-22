@@ -1,12 +1,13 @@
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.auth import require_any_role
 from app.config import Settings, get_settings
-from app.integrations.netsuite import get_next_day_orders, get_shortage_report, list_locations
+from app.integrations.netsuite import get_next_day_orders, get_picking_ticket_html, get_shortage_report, list_locations
 
 router = APIRouter(prefix="/api/shortages", tags=["shortages"])
 
@@ -34,6 +35,9 @@ class ShortageOrder(BaseModel):
     soNum: str
     customer: str
     serviceType: str
+    status: str = ""
+    location: str = ""
+    city: str = ""
     date: str | None
     totalOrdered: float
     lines: list[ShortageLine]
@@ -102,8 +106,22 @@ async def shortage_report(
 @router.get("/next-day", response_model=NextDayOrdersResponse)
 async def next_day_orders(
     date_param: date | None = Query(default=None, alias="date"),
+    location_id: int | None = Query(default=None, alias="locationId"),
     _: dict[str, Any] = Depends(require_any_role({"admin", "sales_manager", "viewer"})),
     settings: Settings = Depends(get_settings),
 ) -> NextDayOrdersResponse:
-    payload = get_next_day_orders(settings=settings, target_date=date_param)
+    payload = get_next_day_orders(settings=settings, target_date=date_param, location_id=location_id)
     return NextDayOrdersResponse(**payload)
+
+
+@router.get("/picking-ticket/{so_num}", response_class=HTMLResponse)
+async def picking_ticket(
+    so_num: str,
+    _: dict[str, Any] = Depends(require_any_role({"admin", "sales_manager", "viewer"})),
+    settings: Settings = Depends(get_settings),
+) -> HTMLResponse:
+    try:
+        html = get_picking_ticket_html(settings=settings, so_num=so_num)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return HTMLResponse(content=html)

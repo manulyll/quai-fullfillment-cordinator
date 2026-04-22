@@ -263,6 +263,16 @@ button:disabled {
   font-family: monospace;
 }
 
+.ticket-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.ticket-link:hover {
+  text-decoration: underline;
+}
+
 .indent-1 {
   padding-left: 24px !important;
 }
@@ -339,6 +349,9 @@ button:disabled {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-decoration: none;
+  color: #2d2a26;
+  display: block;
 }
 
 .calendar-more {
@@ -358,12 +371,20 @@ button:disabled {
 .daily-checklist {
   display: grid;
   gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
-.daily-checklist label {
+.daily-checklist li {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.checkmark-symbol {
+  color: #0f766e;
+  font-weight: 700;
 }
 
 @media (max-width: 900px) {

@@ -45,14 +45,6 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
   const [endDate, setEndDate] = useState(defaults.endDate);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [expandedKits, setExpandedKits] = useState<Record<string, boolean>>({});
-  const [dailyChecklist, setDailyChecklist] = useState<Record<string, boolean>>(() => {
-    try {
-      const raw = localStorage.getItem("quai-daily-checklist");
-      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
-    } catch {
-      return {};
-    }
-  });
 
   const loadReport = async (nextFilters?: { locationId?: number; startDate?: string; endDate?: string }) => {
     setLoading(true);
@@ -68,7 +60,7 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
       const [locationsPayload, reportPayload, nextDayPayload] = await Promise.all([
         apiClient.getLocations(token),
         apiClient.getShortages(token, filters),
-        apiClient.getNextDayOrders(token)
+        apiClient.getNextDayOrders(token, undefined, filters.locationId)
       ]);
       setLocations(locationsPayload.locations);
       setReport(reportPayload);
@@ -85,14 +77,6 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const toggleChecklist = (key: string) => {
-    setDailyChecklist((current) => {
-      const updated = { ...current, [key]: !current[key] };
-      localStorage.setItem("quai-daily-checklist", JSON.stringify(updated));
-      return updated;
-    });
   };
 
   useEffect(() => {
@@ -238,7 +222,7 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
                     {nextDay?.unconfirmedOrders ?? 0}
                   </div>
                   <h3>Required Daily Actions</h3>
-                  <div className="daily-checklist">
+                  <ul className="daily-checklist">
                     {[
                       "Verify all next-day orders are confirmed",
                       "Call customers for unconfirmed orders",
@@ -247,16 +231,12 @@ export const ShortagePage = ({ token, onLogout }: ShortagePageProps) => {
                       "Prepare posts/accessories and labels",
                       "Run final quality control before preparation"
                     ].map((task) => (
-                      <label key={task}>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(dailyChecklist[task])}
-                          onChange={() => toggleChecklist(task)}
-                        />
+                      <li key={task}>
+                        <span className="checkmark-symbol">✓</span>
                         <span>{task}</span>
-                      </label>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                   <h3>Next-Day Order Status</h3>
                   <table className="shortage-table">
                     <thead>

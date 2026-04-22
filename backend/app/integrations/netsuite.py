@@ -161,6 +161,9 @@ SELECT
   t.tranid AS so_num,
   BUILTIN.DF(t.entity) AS customer_name,
   BUILTIN.DF(t.custbodyserviceprecis) AS service_type,
+  BUILTIN.DF(t.status) AS status_text,
+  BUILTIN.DF(t.location) AS location_name,
+  t.shipcity AS ship_city,
   TO_CHAR(t.custbody10, 'YYYY-MM-DD') AS ship_date,
   tl.id AS line_id,
   tl.item AS item_id,
@@ -189,8 +192,11 @@ INVENTORY_SUITEQL = """
 SELECT
   i.id AS item_id,
   BUILTIN.DF(i.id) AS item_name,
-  NVL(i.quantityonhand, 0) AS on_hand
+  NVL(ail.quantityonhand, 0) AS on_hand
 FROM Item i
+LEFT JOIN AggregateItemLocation ail
+  ON ail.item = i.id
+  AND ail.location = %s
 WHERE i.id IN (%s)
 """
 
@@ -198,9 +204,11 @@ INVENTORY_GLOBAL_SUITEQL = """
 SELECT
   i.id AS item_id,
   BUILTIN.DF(i.id) AS item_name,
-  NVL(i.quantityonhand, 0) AS on_hand
+  NVL(SUM(ail.quantityonhand), 0) AS on_hand
 FROM Item i
+LEFT JOIN AggregateItemLocation ail ON ail.item = i.id
 WHERE i.id IN (%s)
+GROUP BY i.id, BUILTIN.DF(i.id)
 """
 
 NEXT_DAY_ORDERS_SUITEQL = """
@@ -215,6 +223,34 @@ FROM Transaction t
 WHERE t.type = 'SalesOrd'
   AND t.custbody10 = TO_DATE('%s', 'YYYY-MM-DD')
 ORDER BY t.tranid
+"""
+
+PICKING_TICKET_HEADER_SUITEQL = """
+SELECT
+  t.tranid AS so_num,
+  BUILTIN.DF(t.entity) AS customer_name,
+  BUILTIN.DF(t.custbodyserviceprecis) AS service_type,
+  BUILTIN.DF(t.status) AS status_text,
+  BUILTIN.DF(t.location) AS location_name,
+  t.shipcity AS ship_city,
+  TO_CHAR(t.custbody10, 'YYYY-MM-DD') AS ship_date
+FROM Transaction t
+WHERE t.type = 'SalesOrd'
+  AND t.tranid = '%s'
+"""
+
+PICKING_TICKET_LINES_SUITEQL = """
+SELECT
+  tl.item AS item_id,
+  BUILTIN.DF(tl.item) AS item_name,
+  ABS(NVL(tl.quantity, 0)) AS ordered_qty
+FROM Transaction t
+JOIN TransactionLine tl ON tl.transaction = t.id
+WHERE t.type = 'SalesOrd'
+  AND t.tranid = '%s'
+  AND tl.mainline = 'F'
+  AND tl.taxline = 'F'
+ORDER BY tl.id
 """
 
 
@@ -410,11 +446,11 @@ def _fetch_inventory(
         return {}
 
     in_list = ",".join(str(item_id) for item_id in sorted(set(item_ids)))
-    query = INVENTORY_SUITEQL if location_id else INVENTORY_GLOBAL_SUITEQL
+    query = (INVENTORY_SUITEQL % (int(location_id), in_list)) if location_id else (INVENTORY_GLOBAL_SUITEQL % in_list)
     params: dict[str, Any] = {}
     rows = run_suiteql_with_pagination(
         credentials=credentials,
-        query=query % in_list,
+        query=query,
         params=params,
         page_size=page_size,
     )
@@ -448,7 +484,7 @@ def get_shortage_report(
         line_query += f"\n  AND tl.location = {int(location_id)}"
 
     report_cache_key = _cache_key(
-        "shortage-report:v1",
+        "shortage-report:v2",
         {
             "realm": settings.netsuite_realm or settings.netsuite_secret_name or "unknown",
             "location_id": location_id,
@@ -510,6 +546,9 @@ def get_shortage_report(
                 "soNum": so_num,
                 "customer": str(row.get("customer_name") or ""),
                 "serviceType": str(row.get("service_type") or ""),
+                "status": str(row.get("status_text") or ""),
+                "location": str(row.get("location_name") or ""),
+                "city": str(row.get("ship_city") or ""),
                 "date": ship_date,
                 "totalOrdered": 0.0,
                 "lines": [],
@@ -577,13 +616,14 @@ def get_shortage_report(
     return payload
 
 
-def get_next_day_orders(settings: Settings, target_date: date | None = None) -> dict[str, Any]:
+def get_next_day_orders(settings: Settings, target_date: date | None = None, location_id: int | None = None) -> dict[str, Any]:
     effective_date = target_date or (datetime.now(timezone.utc).date() + timedelta(days=1))
     cache_key = _cache_key(
-        "next-day-orders:v1",
+        "next-day-orders:v2",
         {
             "realm": settings.netsuite_realm or settings.netsuite_secret_name or "unknown",
             "date": effective_date.isoformat(),
+            "location_id": location_id,
         },
     )
     cached_payload = _cache_get(settings, cache_key)
@@ -592,6 +632,8 @@ def get_next_day_orders(settings: Settings, target_date: date | None = None) -> 
 
     credentials = get_netsuite_credentials(settings)
     query = NEXT_DAY_ORDERS_SUITEQL % effective_date.isoformat()
+    if location_id:
+        query += f"\n  AND t.location = {int(location_id)}"
     rows = run_suiteql_with_pagination(
         credentials=credentials,
         query=query,
@@ -625,3 +667,96 @@ def get_next_day_orders(settings: Settings, target_date: date | None = None) -> 
     }
     _cache_set(settings, cache_key, payload)
     return payload
+
+
+def get_picking_ticket_html(settings: Settings, so_num: str) -> str:
+    normalized_so = so_num.strip().upper()
+    if not normalized_so:
+        raise ValueError("Sales order number is required")
+
+    cache_key = _cache_key(
+        "picking-ticket:v1",
+        {"realm": settings.netsuite_realm or settings.netsuite_secret_name or "unknown", "so_num": normalized_so},
+    )
+    cached = _cache_get(settings, cache_key)
+    if isinstance(cached, dict) and isinstance(cached.get("html"), str):
+        return str(cached["html"])
+
+    credentials = get_netsuite_credentials(settings)
+    header_rows = run_suiteql_with_pagination(
+        credentials=credentials,
+        query=PICKING_TICKET_HEADER_SUITEQL % normalized_so,
+        params={},
+        page_size=settings.netsuite_query_page_size,
+    )
+    if not header_rows:
+        raise ValueError(f"Sales order {normalized_so} not found")
+    header = header_rows[0]
+    line_rows = run_suiteql_with_pagination(
+        credentials=credentials,
+        query=PICKING_TICKET_LINES_SUITEQL % normalized_so,
+        params={},
+        page_size=settings.netsuite_query_page_size,
+    )
+    filtered_lines = []
+    for row in line_rows:
+        item_id = _to_int(row.get("item_id"))
+        item_name = str(row.get("item_name") or "")
+        if not _item_allowed(item_id, item_name):
+            continue
+        qty = _to_float(row.get("ordered_qty"))
+        if qty <= 0:
+            continue
+        filtered_lines.append((item_name.split(":")[-1].strip(), qty))
+
+    rows_html = "".join(
+        f"<tr><td>{name}</td><td style='text-align:right'>{qty:g}</td><td></td></tr>" for name, qty in filtered_lines
+    )
+    html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset='utf-8' />
+  <meta name='viewport' content='width=device-width, initial-scale=1' />
+  <title>Picking Ticket {normalized_so}</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; margin: 12px; color: #1f2937; }}
+    .sheet {{ max-width: 920px; margin: 0 auto; }}
+    .head {{ display:flex; justify-content:space-between; align-items:center; gap: 12px; }}
+    .meta {{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:8px; margin:12px 0; }}
+    .meta div {{ background:#f8fafc; border:1px solid #e5e7eb; border-radius:8px; padding:8px; }}
+    table {{ width:100%; border-collapse: collapse; }}
+    th, td {{ border:1px solid #d1d5db; padding:8px; font-size:14px; }}
+    th {{ background:#f3f4f6; text-align:left; }}
+    .actions {{ display:flex; gap:8px; margin:12px 0; }}
+    button {{ border:none; border-radius:8px; padding:10px 14px; background:#4b5563; color:white; cursor:pointer; }}
+    @media (max-width: 640px) {{ body {{ margin: 6px; }} th, td {{ font-size: 12px; padding: 6px; }} }}
+    @page {{ size: Letter portrait; margin: 0.4in; }}
+    @media print {{ .actions {{ display:none; }} body {{ margin: 0; }} }}
+  </style>
+</head>
+<body>
+  <div class='sheet'>
+    <div class='head'>
+      <h1>Picking Ticket - {normalized_so}</h1>
+      <span>{datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}</span>
+    </div>
+    <div class='actions'>
+      <button onclick='window.print()'>Print (8.5 x 11)</button>
+    </div>
+    <div class='meta'>
+      <div><strong>Customer:</strong> {str(header.get("customer_name") or "-")}</div>
+      <div><strong>Ship Date:</strong> {str(header.get("ship_date") or "-")}</div>
+      <div><strong>Service Type:</strong> {str(header.get("service_type") or "-")}</div>
+      <div><strong>Status:</strong> {str(header.get("status_text") or "-")}</div>
+      <div><strong>Location:</strong> {str(header.get("location_name") or "-")}</div>
+      <div><strong>City:</strong> {str(header.get("ship_city") or "-")}</div>
+    </div>
+    <table>
+      <thead><tr><th>Item</th><th style='text-align:right'>Qty</th><th>Picked</th></tr></thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+  </div>
+</body>
+</html>"""
+    _cache_set(settings, cache_key, {"html": html})
+    return html

@@ -38,7 +38,17 @@ export const ShortageTable = ({
               {order.soNum}
             </td>
             <td>{order.serviceType || "-"}</td>
-            <td />
+            <td>
+              <a
+                href={`/api/shortages/picking-ticket/${encodeURIComponent(order.soNum)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="ticket-link"
+                onClick={(event) => event.stopPropagation()}
+              >
+                Picking Ticket
+              </a>
+            </td>
             <td>{numberFormat.format(order.totalOrdered)}</td>
             <td colSpan={2} />
           </tr>

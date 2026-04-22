@@ -53,6 +53,6 @@ export const apiClient = {
       apiUrl(`/api/shortages/report${toQuery(filters)}`),
       token
     ),
-  getNextDayOrders: (token: string, date?: string): Promise<NextDayOrdersResponse> =>
-    fetchJson<NextDayOrdersResponse>(apiUrl(`/api/shortages/next-day${toQuery({ date })}`), token)
+  getNextDayOrders: (token: string, date?: string, locationId?: number): Promise<NextDayOrdersResponse> =>
+    fetchJson<NextDayOrdersResponse>(apiUrl(`/api/shortages/next-day${toQuery({ date, locationId })}`), token)
 };
