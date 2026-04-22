@@ -23,6 +23,7 @@ export const ShortageTable = ({
         <th>Document Number | Item</th>
         <th>Customer</th>
         <th>Service</th>
+        <th>Event Status</th>
         <th>Aux Ship Date</th>
         <th>Ordered</th>
         <th>On Hand</th>
@@ -38,6 +39,7 @@ export const ShortageTable = ({
               {order.soNum}
             </td>
             <td>{order.serviceType || "-"}</td>
+            <td>{order.status || "-"}</td>
             <td>
               <a
                 href={`/api/shortages/picking-ticket/${encodeURIComponent(order.soNum)}`}
@@ -69,6 +71,7 @@ export const ShortageTable = ({
                       </td>
                       <td>{order.customer}</td>
                       <td>{order.serviceType || "-"}</td>
+                      <td>{order.status || "-"}</td>
                       <td>{line.date || "-"}</td>
                       <td>{numberFormat.format(line.orderedQty)}</td>
                       <td>-</td>
@@ -78,6 +81,7 @@ export const ShortageTable = ({
                       line.components.map((component) => (
                         <tr key={`kit-comp-${kitId}-${component.itemId}`} className="shortage-row">
                           <td className="indent-2">↳ {component.itemName}</td>
+                          <td />
                           <td />
                           <td />
                           <td />
@@ -94,6 +98,7 @@ export const ShortageTable = ({
                   <td className="indent-1">{line.itemName}</td>
                   <td>{order.customer}</td>
                   <td>{order.serviceType || "-"}</td>
+                  <td>{order.status || "-"}</td>
                   <td>{line.date || "-"}</td>
                   <td>{numberFormat.format(line.orderedQty)}</td>
                   <td>{numberFormat.format(line.onHandQty ?? 0)}</td>

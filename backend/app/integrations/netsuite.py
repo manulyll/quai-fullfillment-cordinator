@@ -622,6 +622,23 @@ def get_picking_ticket_html(settings: Settings, so_num: str) -> str:
             continue
         filtered_lines.append((item_name.split(":")[-1].strip(), qty))
 
+    address_parts = [
+        str(header.get("ship_addressee") or "").strip(),
+        str(header.get("ship_addr1") or "").strip(),
+        str(header.get("ship_addr2") or "").strip(),
+        str(header.get("ship_addr3") or "").strip(),
+    ]
+    city = str(header.get("ship_city") or "").strip()
+    state = str(header.get("ship_state") or "").strip()
+    postal = str(header.get("ship_zip") or "").strip()
+    country = str(header.get("ship_country") or "").strip()
+    city_line = " ".join(part for part in [city, state, postal] if part).strip()
+    if city_line:
+        address_parts.append(city_line)
+    if country:
+        address_parts.append(country)
+    shipping_address = "<br/>".join(part for part in address_parts if part) or "-"
+
     rows_html = "".join(
         f"<tr><td>{name}</td><td style='text-align:right'>{qty:g}</td><td></td></tr>" for name, qty in filtered_lines
     )
@@ -662,7 +679,7 @@ def get_picking_ticket_html(settings: Settings, so_num: str) -> str:
       <div><strong>Service Type:</strong> {str(header.get("service_type") or "-")}</div>
       <div><strong>Status:</strong> {str(header.get("status_text") or "-")}</div>
       <div><strong>Location:</strong> {str(header.get("location_name") or "-")}</div>
-      <div><strong>City:</strong> {str(header.get("ship_city") or "-")}</div>
+      <div><strong>Shipping Address:</strong><br/>{shipping_address}</div>
     </div>
     <table>
       <thead><tr><th>Item</th><th style='text-align:right'>Qty</th><th>Picked</th></tr></thead>
