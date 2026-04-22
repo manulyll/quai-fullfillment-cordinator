@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import type { ShortageOrder } from "../lib/types";
 
 type ShipCalendarProps = {
@@ -41,6 +42,23 @@ const statusClassName = (status: string): string => {
     return "calendar-chip status-pending";
   }
   return "calendar-chip status-unknown";
+};
+
+const statusChipStyle = (status: string): CSSProperties => {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("closed") || normalized.includes("billed") || normalized.includes("confirm")) {
+    return { backgroundColor: "#d1fae5", borderColor: "#10b981", color: "#065f46", borderLeft: "4px solid #10b981" };
+  }
+  if (normalized.includes("tentative")) {
+    return { backgroundColor: "#efe3ff", borderColor: "#a855f7", color: "#581c87", borderLeft: "4px solid #a855f7" };
+  }
+  if (normalized.includes("pending billing/partially fulfilled") || normalized.includes("partial")) {
+    return { backgroundColor: "#fee2e2", borderColor: "#ef4444", color: "#7f1d1d", borderLeft: "4px solid #ef4444" };
+  }
+  if (normalized.includes("pending fulfillment") || normalized.includes("pending billing")) {
+    return { backgroundColor: "#fef3c7", borderColor: "#f59e0b", color: "#78350f", borderLeft: "4px solid #f59e0b" };
+  }
+  return { backgroundColor: "#dbeafe", borderColor: "#3b82f6", color: "#1e3a8a", borderLeft: "4px solid #3b82f6" };
 };
 
 export const ShipCalendar = ({ orders, initialDate }: ShipCalendarProps) => {
@@ -105,6 +123,7 @@ export const ShipCalendar = ({ orders, initialDate }: ShipCalendarProps) => {
                   <a
                     key={`${key}-${order.soNum}`}
                     className={statusClassName(order.status || "")}
+                    style={statusChipStyle(order.status || "")}
                     href={`/api/shortages/picking-ticket/${encodeURIComponent(order.soNum)}`}
                     target="_blank"
                     rel="noreferrer"
