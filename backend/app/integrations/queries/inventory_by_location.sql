@@ -1,9 +1,8 @@
 SELECT
-  i.id AS item_id,
-  BUILTIN.DF(i.id) AS item_name,
-  NVL(ail.quantityonhand, 0) AS on_hand
-FROM Item i
-LEFT JOIN AggregateItemLocation ail
-  ON ail.item = i.id
-  AND ail.location = %s
-WHERE i.id IN (%s)
+  ib.item AS item_id,
+  BUILTIN.DF(ib.item) AS item_name,
+  NVL(SUM(ib.quantityOnHand), 0) AS on_hand
+FROM InventoryBalance ib
+WHERE ib.location = %s
+  AND ib.item IN (%s)
+GROUP BY ib.item, BUILTIN.DF(ib.item)

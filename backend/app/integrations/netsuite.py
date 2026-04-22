@@ -657,6 +657,12 @@ def get_picking_ticket_html(settings: Settings, so_num: str) -> str:
     if not header_rows:
         raise ValueError(f"Sales order {normalized_so} not found")
     header = header_rows[0]
+    so_id = _to_int(header.get("so_id"))
+    line_locations = _fetch_line_locations_by_so_ids(
+        credentials=credentials,
+        page_size=settings.netsuite_query_page_size,
+        so_ids=[so_id] if so_id else [],
+    )
     line_rows = run_suiteql_with_pagination(
         credentials=credentials,
         query=PICKING_TICKET_LINES_SUITEQL % normalized_so,
@@ -690,6 +696,7 @@ def get_picking_ticket_html(settings: Settings, so_num: str) -> str:
     if country:
         address_parts.append(country)
     shipping_address = "<br/>".join(part for part in address_parts if part) or "-"
+    location_name = str(header.get("location_name") or "").strip() or line_locations.get(so_id, "-")
 
     rows_html = "".join(
         f"<tr><td>{name}</td><td style='text-align:right'>{qty:g}</td><td></td></tr>" for name, qty in filtered_lines
@@ -730,7 +737,7 @@ def get_picking_ticket_html(settings: Settings, so_num: str) -> str:
       <div><strong>Ship Date:</strong> {str(header.get("ship_date") or "-")}</div>
       <div><strong>Service Type:</strong> {str(header.get("service_type") or "-")}</div>
       <div><strong>Status:</strong> {str(header.get("status_text") or "-")}</div>
-      <div><strong>Location:</strong> {str(header.get("location_name") or "-")}</div>
+      <div><strong>Location:</strong> {location_name}</div>
       <div><strong>Shipping Address:</strong><br/>{shipping_address}</div>
     </div>
     <table>

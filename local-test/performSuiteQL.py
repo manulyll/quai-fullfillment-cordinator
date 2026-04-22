@@ -33,13 +33,13 @@ TEST_QUERIES = {
     "itemmember_smoke": read_query("kit_components.sql").replace("WHERE im.parentitem IN (%s)", "WHERE im.parentitem IS NOT NULL"),
     "item_onhand_smoke": """
         SELECT
-          ail.item AS item_id,
-          BUILTIN.DF(ail.item) AS item_name,
-          ail.location AS location_id,
-          BUILTIN.DF(ail.location) AS location_name,
-          NVL(ail.quantityonhand, 0) AS on_hand
-        FROM AggregateItemLocation ail
-        WHERE NVL(ail.quantityonhand, 0) > 0
+          ib.item AS item_id,
+          BUILTIN.DF(ib.item) AS item_name,
+          ib.location AS location_id,
+          BUILTIN.DF(ib.location) AS location_name,
+          NVL(ib.quantityOnHand, 0) AS on_hand
+        FROM InventoryBalance ib
+        WHERE NVL(ib.quantityOnHand, 0) > 0
     """,
 }
 
