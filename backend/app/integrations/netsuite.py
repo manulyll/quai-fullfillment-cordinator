@@ -221,7 +221,6 @@ SELECT
 FROM Transaction t
 WHERE t.type = 'SalesOrd'
   AND t.custbody10 = TO_DATE('%s', 'YYYY-MM-DD')
-ORDER BY t.tranid
 """
 
 PICKING_TICKET_HEADER_SUITEQL = """
@@ -632,6 +631,7 @@ def get_next_day_orders(settings: Settings, target_date: date | None = None, loc
     query = NEXT_DAY_ORDERS_SUITEQL % effective_date.isoformat()
     if location_id:
         query += f"\n  AND t.location = {int(location_id)}"
+    query += "\nORDER BY t.tranid"
     rows = run_suiteql_with_pagination(
         credentials=credentials,
         query=query,
